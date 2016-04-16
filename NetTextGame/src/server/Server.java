@@ -30,7 +30,7 @@ public class Server {
 		while (true) {
 			System.out.println("Enter port:");
 			try {
-				port = input.nextInt();
+				port = Integer.parseInt(input.next());
 				if (port > 0 && port <= 65535) break;
 			} catch (Exception e) {}
 		}
@@ -78,7 +78,7 @@ public class Server {
 					if (noise != null) p1.print(noise);
 					p2.noise = 0;
 
-					for (p1.moves = 2; p1.moves > 0;) {
+					for (p1.moves = rand.nextInt(12) == 0 ? 3 : 2; p1.moves > 0;) {
 						p1.print("Enter an action (" + p1.moves + " left):");
 						p1.request();
 						while (true) {
@@ -106,8 +106,8 @@ public class Server {
 					String noise = p2.noise(p1);
 					if (noise != null) p2.print(noise);
 					p1.noise = 0;
-					
-					for (p2.moves = 2; p2.moves > 0;) {
+
+					for (p2.moves = rand.nextInt(12) == 0 ? 3 : 2; p2.moves > 0;) {
 						p2.print("Enter an action (" + p2.moves + " left):");
 						p2.request();
 						while (true) {
@@ -136,7 +136,7 @@ public class Server {
 
 				if (p1.x == p2.x && p1.y == p2.y) {
 					if (p1.hunter) {
-						p1.print("You come upon a lone man walking through the forest. Drawing your knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
+						p1.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
 						int d = Math.min(Math.min(p2.x, 29 - p2.x), Math.min(p2.y, 29 - p2.y));
 						if (rand.nextInt((int) Math.ceil(Math.sqrt(d))) == 0) {
 							p2.print("In the corner of your vision, you see a faint light. As you sprint toward it, you trip over a root. Hearing footsteps behind you, you turn to see a masked figure. You try to get up and run, but he quickly slips a knife into your side.\nYou lose.");
@@ -144,7 +144,7 @@ public class Server {
 							p2.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						}
 					} else {
-						p2.print("You come upon a lone man walking through the forest. Drawing your knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
+						p2.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
 						int d = Math.min(Math.min(p1.x, 29 - p1.x), Math.min(p1.y, 29 - p1.y));
 						if (rand.nextInt((int) Math.ceil(Math.sqrt(d))) == 0) {
 							p1.print("In the corner of your vision, you see a faint light. As you sprint toward it, you trip over a root. Hearing footsteps behind you, you turn to see a masked figure. You try to get up and run, but he quickly slips a knife into your side.\nYou lose.");
@@ -157,7 +157,7 @@ public class Server {
 				} else if (p1.won || p2.won) {
 					if (p1.won) {
 						if (p1.hunter) {
-							p1.print("You come upon a lone man walking through the forest. Drawing your knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
+							p1.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
 							p2.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						} else {
 							p1.print("In the corner of your vision, you see a faint light. As you sprint toward it, you recognize a streetlight overlooking a road. You have escaped!\nYou win!");
@@ -165,7 +165,7 @@ public class Server {
 						}
 					} else {
 						if (p2.hunter) {
-							p2.print("You come upon a lone man walking through the forest. Drawing your knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
+							p2.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
 							p1.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						} else {
 							p2.print("In the corner of your vision, you see a faint light. As you sprint toward it, you recognize a streetlight overlooking a road. You have escaped!\nYou win!");
@@ -185,10 +185,31 @@ public class Server {
 
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>print</i></b><br>
+	 * <br>
+	 * {@code protected static void print(String text)}<br>
+	 * <br>
+	 * Outputs the given text as a server log<br>
+	 * @param text The text to output
+	 *        </ul>
+	 */
 	protected static void print(String text) {
 		System.out.println(date.format(new Date()) + " [INFO] " + text);
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>nearby</i></b><br>
+	 * <br>
+	 * {@code public static String nearby(int x, int y)}<br>
+	 * <br>
+	 * @param x
+	 * @param y
+	 * @return A list of things that a player would be able to "see" from the given point (objects in a 7x7 square)
+	 *         </ul>
+	 */
 	public static String nearby(int x, int y) {
 		Set<String> ret = new TreeSet<>();
 
@@ -196,18 +217,18 @@ public class Server {
 		int dy1 = Math.abs(y - p1.y);
 		int dx2 = Math.abs(x - p2.x);
 		int dy2 = Math.abs(y - p2.y);
-		if ((dx1 < 2 && dy1 <= 2 && !(dx1 == 0 && dy1 == 0)) || (dx2 < 2 && dy2 <= 2 && !(dx2 == 0 && dy2 == 0))) {
+		if ((dx1 <= 3 && dy1 <= 3 && !(dx1 == 0 && dy1 == 0)) || (dx2 <= 3 && dy2 <= 3 && !(dx2 == 0 && dy2 == 0))) {
 			ret.add("a humanoid silhouette");
 		}
 
 		int trees = 0;
-		for (int yy = -2; yy <= 2; yy++) {
-			for (int xx = -2; xx <= 2; xx++) {
+		for (int yy = -3; yy <= 3; yy++) {
+			for (int xx = -3; xx <= 3; xx++) {
 				try {
 					switch (world[yy + y][xx + x]) {
 						case 1:
-							ret.remove((trees > 5 ? "a lot of" : trees) + " tree" + (trees++ == 1 ? "" : "s"));
-							ret.add((trees > 5 ? "a lot of" : trees) + " tree" + (trees == 1 ? "" : "s"));
+							ret.remove((trees > 9 ? "a lot of" : trees) + " tree" + (trees++ == 1 ? "" : "s"));
+							ret.add((trees > 9 ? "a lot of" : trees) + " tree" + (trees == 1 ? "" : "s"));
 							break;
 						case 2:
 							ret.add("water");
@@ -224,10 +245,32 @@ public class Server {
 		return ret.toString().replace("[", "").replace("]", "").replaceAll(",(\\s*[^,]+)$", ", and$1");
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>traversable</i></b><br>
+	 * <br>
+	 * {@code public static boolean traversable(int terrain)}<br>
+	 * <br>
+	 * @param terrain
+	 * @return Whether or not the given terrain type can be walked on.
+	 *         </ul>
+	 */
 	public static boolean traversable(int terrain) {
-		return terrain == 0 || terrain == 2;
+		return terrain == 0 || terrain == 2 || terrain == 3;
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>generateWorld</i></b><br><br>
+	 * {@code private static int[][] generateWorld(int x1, int y1, int x2, int y2)}<br><br>
+	 * Generates a world, making sure that players can complete their objective.<br>
+	 * @param x1 The x coordinate of the first player
+	 * @param y1 The y coordinate of the first player
+	 * @param x2 The x coordinate of the second player
+	 * @param y2 The y coordinate of the second player
+	 * @return The generated world.
+	 * </ul>
+	 */
 	private static int[][] generateWorld(int x1, int y1, int x2, int y2) {
 		int[][] ret = new int[30][30];
 
@@ -257,7 +300,7 @@ public class Server {
 			}
 		}
 
-		final int rvr = rand.nextInt(2) + 2;
+		final int rvr = rand.nextInt(4) + 2;
 		for (int r = 0; r < rvr; r++) {
 			int side = rand.nextInt(4);
 			double rx = side == 0 ? 0 : (side == 2 ? 29 : rand.nextInt(30));

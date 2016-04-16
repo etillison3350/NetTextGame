@@ -1,19 +1,30 @@
 package server;
 
+import java.awt.Point;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 public class Player {
 
+	/**
+	 * The name of this player
+	 */
 	public final String name;
 
+	/**
+	 * Whether or not this player is the hunter
+	 */
 	public boolean hunter;
 
 	public int x, y;
@@ -21,10 +32,25 @@ public class Player {
 	public PrintWriter out;
 	public BufferedReader in;
 
+	/**
+	 * The number of moves the player has remaining
+	 */
 	public int moves;
-	public int noise;
+	
+	/**
+	 * How much noise this player has caused
+	 */
+	public double noise;
 
+	/**
+	 * Whether or not this player has won the game
+	 */
 	public boolean won = false;
+
+	/**
+	 * Maps aliases. Keys are replaced with values
+	 */
+	public Map<String, String> aliases = new HashMap<>();
 
 	public static final Random rand = new Random();
 
@@ -38,76 +64,144 @@ public class Player {
 		in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>parse</i></b><br><br>
+	 * {@code public String parse(String str)}<br><br>
+	 * Executes the given command.<br>
+	 * @param str The command to execute
+	 * @return The text to be outputted to the player. Failure messages begin with an <code>*</code>.
+	 * </ul>
+	 */
 	public String parse(String str) {
 		String[] command = str.trim().toLowerCase().split("\\s+");
 
 		if (command.length < 1) return "*Please enter a command.";
 
-		switch (command[0]) {
-			case "walk":
-				if (command.length < 2) return "*Please enter a direction";
+		if (aliases.keySet().contains(command[0])) {
+			List<String> cmd = new ArrayList<>(Arrays.asList(command));
+			cmd.remove(0);
+			cmd.addAll(0, Arrays.asList(aliases.get(command[0]).split("\\s+")));
+			command = cmd.toArray(new String[cmd.size()]);
+		}
 
-				String dir;
-				int nx = x, ny = y;
-				switch (command[1]) {
-					case "n":
-					case "north":
-						dir = "north";
-						ny--;
-						break;
-					case "e":
-					case "east":
-						dir = "east";
-						nx++;
-						break;
-					case "s":
-					case "south":
-						dir = "south";
-						ny++;
-						break;
-					case "w":
-					case "west":
-						dir = "west";
-						nx--;
-						break;
-					default:
-						return "*You cannot walk that way.";
-				}
+		if (command[0].equals("alias")) {
+			if (command.length < 2) return "*Please enter a word to define";
+			if (command[1].equals("alias") || command[1].equals("walk") || command[1].equals("look") || command[1].equals("creep") || command[1].equals("sneak") || command[1].equals("cut") || command[1].equals("skip") || command[1].equals("stand")) return "*That word cannot be redefined.";
+			if (command.length < 3) return "*Please enter text to redefine \"" + command[1] + "\" as.";
+			String alias = Arrays.stream(command).skip(2).collect(Collectors.joining(" "));
+			aliases.put(command[1], alias);
+			return "\"" + alias + "\" has been redefined as \"" + command[1] + "\".";
+		} else if (command[0].equals("walk") || command[0].equals("creep") || command[0].equals("sneak")) {
+			if (command.length < 2) return "*Please enter a direction";
+
+			boolean creep = command[0].equals("creep") || command[0].equals("sneak") || (command.length >= 3 && (command[1].equals("quietly") || command[2].equals("quietly")));
+			if (creep && moves < 2) return "*You don't have enough moves left to do that.";
+
+			String dir;
+			int nx = x, ny = y;
+			switch (command[1].equals("quietly") ? command[2] : command[1]) {
+				case "n":
+				case "north":
+					dir = "north";
+					ny--;
+					break;
+				case "e":
+				case "east":
+					dir = "east";
+					nx++;
+					break;
+				case "s":
+				case "south":
+					dir = "south";
+					ny++;
+					break;
+				case "w":
+				case "west":
+					dir = "west";
+					nx--;
+					break;
+				default:
+					return "*You cannot walk that way.";
+			}
+			moves -= creep ? 2 : 1;
+			switch (move(nx, ny)) {
+				case 0:
+					noise += creep ? 1 : 2.5;
+					return "You walked " + dir + ".";
+				case -1:
+					if (hunter) {
+						noise += creep ? 1 : 2;
+						return "You have reached the edge of the forest.";
+					} else {
+						won = true;
+						return null;
+					}
+				case 1:
+					noise += creep ? 1 : 2.5;
+					return "You walked into a tree.";
+				case 2:
+					noise += creep ? 3 : 5;
+					return "You have fallen into a river.";
+				case 3:
+					noise += creep ? 1 : 2.2;
+					return "You are standing on a log.";
+				default:
+					noise += creep ? 1 : 2.5;
+					return "You walked into a mysterious object.";
+			}
+		} else if (command[0].equals("look")) {
+			noise += 0.4;
+			moves--;
+			return "You look around, and see " + Server.nearby(x, y) + ".";
+		} else if (command[0].equals("cut")) {
+			if (moves < 2) return "*You don't have enough moves left to do that.";
+			
+			noise += 20;
+			List<Point> trees = new ArrayList<>();
+			if (Server.world[y - 1][x] == 1) trees.add(new Point(x, y - 1));
+			if (Server.world[y + 1][x] == 1) trees.add(new Point(x, y + 1));
+			if (Server.world[y][x - 1] == 1) trees.add(new Point(x - 1, y));
+			if (Server.world[y][x + 1] == 1) trees.add(new Point(x + 1, y));
+
+			if (trees.size() <= 0) {
 				moves--;
-				switch (move(nx, ny)) {
-					case 0:
-						noise += 5;
-						return "You walked " + dir + ".";
-					case -1:
-						if (hunter) {
-							noise += 4;
-							return "You have reached the edge of the forest.";
-						} else {
-							won = true;
-							return null;
-						}
-					case 1:
-						noise += 5;
-						return "You walked into a tree.";
-					case 2:
-						noise += 10;
-						return "You have fallen into a river.";
-					default:
-						noise += 5;
-						return "You walked into a mysterious object.";
-				}
-			case "look":
-				noise += 1;
-				moves--;
-				return "You look around, and see " + Server.nearby(x, y) + ".";
-			default:
-				return "*You cannot perform that action.";
+				return "There are no trees to cut down.";
+			}
+			Point tree = trees.get(rand.nextInt(trees.size()));
+			int h = rand.nextInt(5);
+			int dir = rand.nextInt(4);
+			for (int i = 0; i < h; i++) {
+				Server.world[tree.y][tree.x] = 3;
+				if (dir % 2 == 0)
+					tree.x += dir - 1;
+				else
+					tree.y += dir - 2;
+				if (Server.world[tree.y][tree.x] == 1) break;
+			}
+			moves -= 2;
+			return "You cut down a tree.";
+		} else if (command[0].equals("skip") || command[0].equals("stand")) {
+			moves--;
+			noise -= 0.05;
+			return "You stood still.";
+		} else {
+			return "*You cannot perform that action.";
 		}
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>noise</i></b><br><br>
+	 * {@code public String noise(Player other)}<br><br>
+	 * Gets the noise that this player would hear<br>
+	 * @param other The other player in the game.
+	 * @return The noises that this player hears.
+	 * </ul>
+	 */
 	public String noise(Player other) {
 		if (other.noise <= 0) return null;
-		
+
 		int dy = this.y - other.y;
 		int dx = this.x - other.x;
 		if (Server.world[other.y][other.x] == 2) {
@@ -126,16 +220,51 @@ public class Player {
 			}
 		}
 
+		if (Server.world[this.y][this.x] != 2) {
+			int rNoise = 0;
+			int[] dir = new int[4];
+			for (int y = -2; y <= 2; y++) {
+				for (int x = -2; x <= 2; x++) {
+					try {
+						if (Server.world[this.y + y][this.x + x] == 2) {
+							if (y <= 0) dir[0]++;
+							if (y >= 0) dir[2]++;
+							if (x <= 0) dir[1]++;
+							if (x >= 0) dir[3]++;
+							rNoise++;
+						}
+					} catch (ArrayIndexOutOfBoundsException e) {}
+				}
+			}
+			int max = Arrays.stream(dir).max().getAsInt();
+			List<String> dirs = new ArrayList<>();
+			String[] dn = {"north", "west", "south", "east"};
+			for (int i = 0; i < 4; i++) {
+				if (dir[i] == max) dirs.add(dn[i]);
+			}
+			if (rand.nextInt((int) (4 - (rNoise / 12.0))) == 0) return "You hear flowing water in the " + dirs.get(rand.nextInt(dirs.size())) + ".";
+		}
+
 		return null;
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>direction</i></b><br><br>
+	 * {@code private static String direction(int dx, int dy)}<br><br>
+	 * Gets a direction represented by the given values. The direction is picked randomly from all directions that apply.<br>
+	 * @param dx The difference in x values. 
+	 * @param dy The difference in y values.
+	 * @return <code>"north"</code>, <code>"south"</code>, <code>"east"</code>, or <code>"west"</code>.
+	 * </ul>
+	 */
 	private static String direction(int dx, int dy) {
 		List<String> dirs = new ArrayList<>();
 
-		if (dy < 0) dirs.add("south");
-		if (dy > 0) dirs.add("north");
-		if (dx < 0) dirs.add("east");
-		if (dx > 0) dirs.add("west");
+		if (dy <= 0) dirs.add("south");
+		if (dy >= 0) dirs.add("north");
+		if (dx <= 0) dirs.add("east");
+		if (dx >= 0) dirs.add("west");
 
 		return dirs.get(rand.nextInt(dirs.size()));
 	}
@@ -144,7 +273,7 @@ public class Player {
 	 * <ul>
 	 * <li><b><i>move</i></b><br>
 	 * <br>
-	 * {@code int move()}<br>
+	 * {@code public int move(int x, int y)}<br>
 	 * <br>
 	 * Attempts to move to the specified location
 	 * @param x
@@ -162,24 +291,56 @@ public class Player {
 		return Server.world[y][x];
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>print</i></b><br><br>
+	 * {@code public void print(String text)}<br><br>
+	 * Outputs the given text to the client.<br>
+	 * @param text The text to output
+	 * </ul>
+	 */
 	public void print(String text) {
 		out.println(text);
 		out.flush();
 		System.out.println(Server.date.format(new Date()) + " [SERVER -> " + this.name + "] " + text.replace("\n", "\n\t"));
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>read</i></b><br><br>
+	 * {@code public String read() throws IOException}<br><br>
+	 * Reads from the client<br>
+	 * @return input from the client, as returned by {@link BufferedReader#readLine()}
+	 * @throws IOException If there is an IOException while reading.
+	 * </ul>
+	 */
 	public String read() throws IOException {
 		String ret = in.readLine();
 		System.out.println(Server.date.format(new Date()) + " [" + this.name + "] " + ret);
 		return ret;
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>request</i></b><br><br>
+	 * {@code public void request()}<br><br>
+	 * Requests input from the client.<br>
+	 * </ul>
+	 */
 	public void request() {
 		out.println(">");
 		System.out.println(Server.date.format(new Date()) + " [INFO] Requesting output from " + this.name);
 		out.flush();
 	}
 
+	/**
+	 * <ul>
+	 * <li><b><i>close</i></b><br><br>
+	 * {@code public void close() throws IOException}<br><br>
+	 * Closes the socket and all streams.<br>
+	 * @throws IOException If an IOException occurs while closing the socket or streams.
+	 * </ul>
+	 */
 	public void close() throws IOException {
 		out.println((char) 4);
 		out.flush();

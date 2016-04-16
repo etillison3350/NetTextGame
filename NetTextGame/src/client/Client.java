@@ -1,16 +1,21 @@
 package client;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketException;
 
+import javax.swing.BorderFactory;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -27,24 +32,39 @@ public class Client extends JFrame {
 	private final JTextArea textArea;
 	private final JTextField textField;
 
+	private PrintWriter out;
+	private BufferedReader in;
+
 	private String address;
 	private int port;
+
+	private boolean confirmClose = true;
 
 	public Client() {
 		super("Network Text Game");
 
-		this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		this.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 		this.setSize(640, 480);
+
+		this.setBackground(Color.BLACK);
 
 		this.textArea = new JTextArea();
 		this.textArea.setEditable(false);
 		this.textArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		this.textArea.setLineWrap(true);
 		this.textArea.setWrapStyleWord(true);
+		this.textArea.setBackground(Color.BLACK);
+		this.textArea.setForeground(Color.WHITE);
+		this.textArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 1, 5));
 		JScrollPane scroll = new JScrollPane(this.textArea);
+		scroll.setBackground(Color.LIGHT_GRAY);
+		scroll.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
 		this.add(scroll);
 
 		this.textField = new JTextField();
+		this.textField.setBackground(Color.BLACK);
+		this.textField.setForeground(Color.WHITE);
+		this.textField.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
 		this.textField.addActionListener(new ActionListener() {
 
 			@Override
@@ -75,6 +95,18 @@ public class Client extends JFrame {
 		});
 		this.textField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		this.add(this.textField, BorderLayout.SOUTH);
+
+		this.addWindowListener(new WindowAdapter() {
+
+			@Override
+			public void windowClosing(WindowEvent e) {
+				if (confirmClose || JOptionPane.showConfirmDialog(Client.this, "Are you sure you want to exit?", "Exit", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION) {
+					Client.this.dispose();
+					System.exit(0);
+				}
+			}
+
+		});
 
 		new Thread(new Runnable() {
 
@@ -107,6 +139,8 @@ public class Client extends JFrame {
 
 					append("Connected to " + socket.getInetAddress().getHostAddress() + ":" + port + "\n");
 
+					confirmClose = false;
+
 					while (true) {
 						String s = in.readLine();
 						if (s.charAt(0) == 4) break;
@@ -124,12 +158,16 @@ public class Client extends JFrame {
 						scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
 					}
 
+					confirmClose = true;
+
 					in.close();
 					out.close();
 					socket.close();
 				} catch (SocketException e) {
 					try {
+						textField.setEnabled(false);
 						append("Your connection to the server has been lost.");
+						confirmClose = false;
 					} catch (InterruptedException e1) {}
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -144,8 +182,4 @@ public class Client extends JFrame {
 			Thread.sleep(15);
 		}
 	}
-
-	private PrintWriter out;
-	private BufferedReader in;
-
 }
