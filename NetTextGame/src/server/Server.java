@@ -75,15 +75,13 @@ public class Server {
 				if (turn) {
 					p2.print("Waiting for other player...");
 
-					for (p1.moves = rand.nextInt(12) == 0 ? 3 : 2; p1.moves > 0;) {
+					for (p1.moves = 2 + (int) Math.abs(rand.nextGaussian() * (p1.hunter ? 1 : 0.8125)); p1.moves > 0;) {
 						p1.print("Enter an action (" + p1.moves + " left):");
 						p1.request();
 						while (true) {
 							String s = null;
 							try {
 								s = p1.parse(p1.read());
-								String noise = p2.noise(p1);
-								if (noise != null) p2.print(noise);
 							} catch (IOException e) {
 								p1.moves = 0;
 								p2.print("The other player has disconnected from the server.");
@@ -96,21 +94,22 @@ public class Server {
 							if (s.charAt(0) == '*') {
 								p1.request();
 							} else {
+								String noise = p2.noise(p1);
+								if (noise != null) p2.print(noise);
+								p1.noises.clear();
 								break;
 							}
 						}
 					}
 				} else {
 					p1.print("Waiting for other player...");
-					for (p2.moves = rand.nextInt(12) == 0 ? 3 : 2; p2.moves > 0;) {
+					for (p2.moves = 2 + (int) Math.abs(rand.nextGaussian() * (p2.hunter ? 1 : 0.8125)); p2.moves > 0;) {
 						p2.print("Enter an action (" + p2.moves + " left):");
 						p2.request();
 						while (true) {
 							String s = null;
 							try {
 								s = p2.parse(p2.read());
-								String noise = p1.noise(p2);
-								if (noise != null) p1.print(noise);
 							} catch (IOException e) {
 								p2.moves = 0;
 								p1.print("The other player has disconnected from the server.");
@@ -123,6 +122,9 @@ public class Server {
 							if (s.charAt(0) == '*') {
 								p2.request();
 							} else {
+								String noise = p1.noise(p2);
+								if (noise != null) p1.print(noise);
+								p2.noises.clear();
 								break;
 							}
 						}
@@ -229,6 +231,9 @@ public class Server {
 							break;
 						case 2:
 							ret.add("water");
+							break;
+						case 3:
+							ret.add("a freshly cut log");
 							break;
 					}
 				} catch (ArrayIndexOutOfBoundsException e) {

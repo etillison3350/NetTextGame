@@ -156,17 +156,17 @@ public class Player {
 		} else if (command[0].equals("cut")) {
 			if (moves < 2) return "*You don't have enough moves left to do that.";
 
-			noises.add(new Noise("branches snapping and a loud thud", 1, new Point(this.x, this.y)));
 			List<Point> trees = new ArrayList<>();
-			if (Server.world[y - 1][x] == 1) trees.add(new Point(x, y - 1));
-			if (Server.world[y + 1][x] == 1) trees.add(new Point(x, y + 1));
-			if (Server.world[y][x - 1] == 1) trees.add(new Point(x - 1, y));
-			if (Server.world[y][x + 1] == 1) trees.add(new Point(x + 1, y));
+			if (y > 0 && Server.world[y - 1][x] == 1) trees.add(new Point(x, y - 1));
+			if (y < 29 && Server.world[y + 1][x] == 1) trees.add(new Point(x, y + 1));
+			if (x > 0 && Server.world[y][x - 1] == 1) trees.add(new Point(x - 1, y));
+			if (x < 29 && Server.world[y][x + 1] == 1) trees.add(new Point(x + 1, y));
 
 			if (trees.size() <= 0) {
 				moves--;
 				return "There are no trees to cut down.";
 			}
+			noises.add(new Noise("branches snapping and a loud thud", 1, new Point(this.x, this.y)));
 			Point tree = trees.get(rand.nextInt(trees.size()));
 			int h = rand.nextInt(5);
 			int dir = rand.nextInt(4);
@@ -234,7 +234,6 @@ public class Player {
 				return "You hear " + noise.noise + " in the " + direction(other.x - this.x, other.y - this.y);
 			}
 		}
-		other.noises.clear();
 
 		if (Server.world[this.y][this.x] != 2) {
 			int rNoise = 0;
