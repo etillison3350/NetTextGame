@@ -65,6 +65,7 @@ public class Client extends JFrame {
 		this.textField.setBackground(Color.BLACK);
 		this.textField.setForeground(Color.WHITE);
 		this.textField.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
+		this.textField.setCaretColor(Color.LIGHT_GRAY);
 		this.textField.addActionListener(new ActionListener() {
 
 			@Override
@@ -167,7 +168,7 @@ public class Client extends JFrame {
 					try {
 						textField.setEnabled(false);
 						append("Your connection to the server has been lost.");
-						confirmClose = false;
+						confirmClose = true;
 					} catch (InterruptedException e1) {}
 				} catch (Exception e) {
 					e.printStackTrace();

@@ -74,9 +74,6 @@ public class Server {
 			while (true) {
 				if (turn) {
 					p2.print("Waiting for other player...");
-					String noise = p1.noise(p2);
-					if (noise != null) p1.print(noise);
-					p2.noise = 0;
 
 					for (p1.moves = rand.nextInt(12) == 0 ? 3 : 2; p1.moves > 0;) {
 						p1.print("Enter an action (" + p1.moves + " left):");
@@ -85,6 +82,8 @@ public class Server {
 							String s = null;
 							try {
 								s = p1.parse(p1.read());
+								String noise = p2.noise(p1);
+								if (noise != null) p2.print(noise);
 							} catch (IOException e) {
 								p1.moves = 0;
 								p2.print("The other player has disconnected from the server.");
@@ -103,10 +102,6 @@ public class Server {
 					}
 				} else {
 					p1.print("Waiting for other player...");
-					String noise = p2.noise(p1);
-					if (noise != null) p2.print(noise);
-					p1.noise = 0;
-
 					for (p2.moves = rand.nextInt(12) == 0 ? 3 : 2; p2.moves > 0;) {
 						p2.print("Enter an action (" + p2.moves + " left):");
 						p2.request();
@@ -114,6 +109,8 @@ public class Server {
 							String s = null;
 							try {
 								s = p2.parse(p2.read());
+								String noise = p1.noise(p2);
+								if (noise != null) p1.print(noise);
 							} catch (IOException e) {
 								p2.moves = 0;
 								p1.print("The other player has disconnected from the server.");
@@ -141,7 +138,7 @@ public class Server {
 						if (rand.nextInt((int) Math.ceil(Math.sqrt(d))) == 0) {
 							p2.print("In the corner of your vision, you see a faint light. As you sprint toward it, you trip over a root. Hearing footsteps behind you, you turn to see a masked figure. You try to get up and run, but he quickly slips a knife into your side.\nYou lose.");
 						} else {
-							p2.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
+							p2.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn back around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						}
 					} else {
 						p2.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
@@ -149,7 +146,7 @@ public class Server {
 						if (rand.nextInt((int) Math.ceil(Math.sqrt(d))) == 0) {
 							p1.print("In the corner of your vision, you see a faint light. As you sprint toward it, you trip over a root. Hearing footsteps behind you, you turn to see a masked figure. You try to get up and run, but he quickly slips a knife into your side.\nYou lose.");
 						} else {
-							p1.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
+							p1.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn back around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						}
 					}
 
@@ -158,7 +155,7 @@ public class Server {
 					if (p1.won) {
 						if (p1.hunter) {
 							p1.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
-							p2.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
+							p2.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn back around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						} else {
 							p1.print("In the corner of your vision, you see a faint light. As you sprint toward it, you recognize a streetlight overlooking a road. You have escaped!\nYou win!");
 							p2.print("You search for hours longer, but as the sun illuminates the forest, you have found nothing. Your quarry must have escaped.\nYou lose.");
@@ -166,7 +163,7 @@ public class Server {
 					} else {
 						if (p2.hunter) {
 							p2.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
-							p1.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
+							p1.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn back around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
 						} else {
 							p2.print("In the corner of your vision, you see a faint light. As you sprint toward it, you recognize a streetlight overlooking a road. You have escaped!\nYou win!");
 							p1.print("You search for hours longer, but as the sun illuminates the forest, you have found nothing. Your quarry must have escaped.\nYou lose.");
@@ -261,15 +258,17 @@ public class Server {
 
 	/**
 	 * <ul>
-	 * <li><b><i>generateWorld</i></b><br><br>
-	 * {@code private static int[][] generateWorld(int x1, int y1, int x2, int y2)}<br><br>
+	 * <li><b><i>generateWorld</i></b><br>
+	 * <br>
+	 * {@code private static int[][] generateWorld(int x1, int y1, int x2, int y2)}<br>
+	 * <br>
 	 * Generates a world, making sure that players can complete their objective.<br>
 	 * @param x1 The x coordinate of the first player
 	 * @param y1 The y coordinate of the first player
 	 * @param x2 The x coordinate of the second player
 	 * @param y2 The y coordinate of the second player
 	 * @return The generated world.
-	 * </ul>
+	 *         </ul>
 	 */
 	private static int[][] generateWorld(int x1, int y1, int x2, int y2) {
 		int[][] ret = new int[30][30];

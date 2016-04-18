@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -36,11 +37,8 @@ public class Player {
 	 * The number of moves the player has remaining
 	 */
 	public int moves;
-	
-	/**
-	 * How much noise this player has caused
-	 */
-	public double noise;
+
+	public final List<Noise> noises = new ArrayList<>();
 
 	/**
 	 * Whether or not this player has won the game
@@ -66,12 +64,14 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>parse</i></b><br><br>
-	 * {@code public String parse(String str)}<br><br>
+	 * <li><b><i>parse</i></b><br>
+	 * <br>
+	 * {@code public String parse(String str)}<br>
+	 * <br>
 	 * Executes the given command.<br>
 	 * @param str The command to execute
 	 * @return The text to be outputted to the player. Failure messages begin with an <code>*</code>.
-	 * </ul>
+	 *         </ul>
 	 */
 	public String parse(String str) {
 		String[] command = str.trim().toLowerCase().split("\\s+");
@@ -127,37 +127,36 @@ public class Player {
 			moves -= creep ? 2 : 1;
 			switch (move(nx, ny)) {
 				case 0:
-					noise += creep ? 1 : 2.5;
+					noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", (creep ? 0.375 : 1) * treeChance(nx, ny), new Point(nx, ny)));
 					return "You walked " + dir + ".";
 				case -1:
 					if (hunter) {
-						noise += creep ? 1 : 2;
+						noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", (creep ? 0.375 : 1) * treeChance(nx, ny), new Point(nx, ny)));
 						return "You have reached the edge of the forest.";
 					} else {
 						won = true;
 						return null;
 					}
 				case 1:
-					noise += creep ? 1 : 2.5;
+					noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", (creep ? 0.375 : 1) * treeChance(nx, ny), new Point(nx, ny)));
 					return "You walked into a tree.";
 				case 2:
-					noise += creep ? 3 : 5;
+					noises.add(new Noise("a splash", 0.8, new Point(nx, ny)));
 					return "You have fallen into a river.";
 				case 3:
-					noise += creep ? 1 : 2.2;
+					noises.add(new Noise(rand.nextBoolean() ? "footsteps" : "twigs snapping", (creep ? 0.3 : 0.8) * treeChance(nx, ny), new Point(nx, ny)));
 					return "You are standing on a log.";
 				default:
-					noise += creep ? 1 : 2.5;
 					return "You walked into a mysterious object.";
 			}
 		} else if (command[0].equals("look")) {
-			noise += 0.4;
+			noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", treeChance(this.x, this.y), new Point(this.x, this.y)));
 			moves--;
 			return "You look around, and see " + Server.nearby(x, y) + ".";
 		} else if (command[0].equals("cut")) {
 			if (moves < 2) return "*You don't have enough moves left to do that.";
-			
-			noise += 20;
+
+			noises.add(new Noise("branches snapping and a loud thud", 1, new Point(this.x, this.y)));
 			List<Point> trees = new ArrayList<>();
 			if (Server.world[y - 1][x] == 1) trees.add(new Point(x, y - 1));
 			if (Server.world[y + 1][x] == 1) trees.add(new Point(x, y + 1));
@@ -183,7 +182,6 @@ public class Player {
 			return "You cut down a tree.";
 		} else if (command[0].equals("skip") || command[0].equals("stand")) {
 			moves--;
-			noise -= 0.05;
 			return "You stood still.";
 		} else {
 			return "*You cannot perform that action.";
@@ -192,33 +190,51 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>noise</i></b><br><br>
-	 * {@code public String noise(Player other)}<br><br>
+	 * <li><b><i>treeChance</i></b><br>
+	 * <br>
+	 * {@code double treeChance()}<br>
+	 * <br>
+	 * description<br>
+	 * @param x
+	 * @param y
+	 * @return
+	 * 		</ul>
+	 */
+	private double treeChance(int x, int y) {
+		int noise = 0;
+		for (int yy = -2; yy <= 2; yy++) {
+			for (int xx = -2; xx <= 2; xx++) {
+				try {
+					if (Server.world[y + yy][x + xx] == 1) noise += 4 - (Math.abs(yy) + Math.abs(xx));
+				} catch (ArrayIndexOutOfBoundsException e) {}
+			}
+		}
+
+		return Math.log(noise) / 3.6635616461296463;
+	}
+
+	/**
+	 * <ul>
+	 * <li><b><i>noise</i></b><br>
+	 * <br>
+	 * {@code public String noise(Player other)}<br>
+	 * <br>
 	 * Gets the noise that this player would hear<br>
 	 * @param other The other player in the game.
 	 * @return The noises that this player hears.
-	 * </ul>
+	 *         </ul>
 	 */
 	public String noise(Player other) {
-		if (other.noise <= 0) return null;
+		List<Noise> noises = new ArrayList<>(other.noises);
+		Collections.shuffle(noises);
 
-		int dy = this.y - other.y;
-		int dx = this.x - other.x;
-		if (Server.world[other.y][other.x] == 2) {
-			if (rand.nextInt((int) Math.ceil(1.2 / other.noise * (Math.abs(dy) + Math.abs(dx)))) == 0) return "You hear a loud splash in the " + direction(dx, dy) + ".";
-		} else {
-			int noise = 0;
-			for (int y = -2; y <= 2; y++) {
-				for (int x = -2; x <= 2; x++) {
-					try {
-						if (Server.world[other.y + y][other.x + x] == 1) noise += 4 - (Math.abs(x) + Math.abs(y));
-					} catch (ArrayIndexOutOfBoundsException e) {}
-				}
-			}
-			if (rand.nextInt((int) Math.ceil(1.0 / other.noise * (Math.abs(dy) + Math.abs(dx)) * (4 - Math.sqrt(noise) * 0.6))) == 0) {
-				return "You hear " + (rand.nextBoolean() ? "twigs snapping" : "leaves crinkling") + " in the " + direction(dx, dy) + ".";
+		double dist = Math.pow(1.035, -Math.pow(Math.abs(other.y - this.y) + Math.abs(other.x - this.x), 1.075));
+		for (Noise noise : noises) {
+			if (rand.nextDouble() < noise.chance * dist) {
+				return "You hear " + noise.noise + " in the " + direction(other.x - this.x, other.y - this.y);
 			}
 		}
+		other.noises.clear();
 
 		if (Server.world[this.y][this.x] != 2) {
 			int rNoise = 0;
@@ -250,23 +266,23 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>direction</i></b><br><br>
-	 * {@code private static String direction(int dx, int dy)}<br><br>
-	 * Gets a direction represented by the given values. The direction is picked randomly from all directions that apply.<br>
-	 * @param dx The difference in x values. 
+	 * <li><b><i>direction</i></b><br>
+	 * <br>
+	 * {@code private static String direction(int dx, int dy)}<br>
+	 * <br>
+	 * Gets a direction represented by the given values. The direction is picked randomly from all directions that apply, weighted by <code>dx</code> and <code>dy</code>.<br>
+	 * @param dx The difference in x values.
 	 * @param dy The difference in y values.
 	 * @return <code>"north"</code>, <code>"south"</code>, <code>"east"</code>, or <code>"west"</code>.
-	 * </ul>
+	 *         </ul>
 	 */
 	private static String direction(int dx, int dy) {
-		List<String> dirs = new ArrayList<>();
-
-		if (dy <= 0) dirs.add("south");
-		if (dy >= 0) dirs.add("north");
-		if (dx <= 0) dirs.add("east");
-		if (dx >= 0) dirs.add("west");
-
-		return dirs.get(rand.nextInt(dirs.size()));
+		double x = Math.abs(dx);
+		if (Math.random() < x / (Math.abs(dy) + x)) {
+			return (dx < 0 ? "east" : "west");
+		} else {
+			return (dy < 0 ? "north" : "south");
+		}
 	}
 
 	/**
@@ -293,11 +309,13 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>print</i></b><br><br>
-	 * {@code public void print(String text)}<br><br>
+	 * <li><b><i>print</i></b><br>
+	 * <br>
+	 * {@code public void print(String text)}<br>
+	 * <br>
 	 * Outputs the given text to the client.<br>
 	 * @param text The text to output
-	 * </ul>
+	 *        </ul>
 	 */
 	public void print(String text) {
 		out.println(text);
@@ -307,12 +325,14 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>read</i></b><br><br>
-	 * {@code public String read() throws IOException}<br><br>
+	 * <li><b><i>read</i></b><br>
+	 * <br>
+	 * {@code public String read() throws IOException}<br>
+	 * <br>
 	 * Reads from the client<br>
 	 * @return input from the client, as returned by {@link BufferedReader#readLine()}
 	 * @throws IOException If there is an IOException while reading.
-	 * </ul>
+	 *         </ul>
 	 */
 	public String read() throws IOException {
 		String ret = in.readLine();
@@ -322,8 +342,10 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>request</i></b><br><br>
-	 * {@code public void request()}<br><br>
+	 * <li><b><i>request</i></b><br>
+	 * <br>
+	 * {@code public void request()}<br>
+	 * <br>
 	 * Requests input from the client.<br>
 	 * </ul>
 	 */
@@ -335,11 +357,13 @@ public class Player {
 
 	/**
 	 * <ul>
-	 * <li><b><i>close</i></b><br><br>
-	 * {@code public void close() throws IOException}<br><br>
+	 * <li><b><i>close</i></b><br>
+	 * <br>
+	 * {@code public void close() throws IOException}<br>
+	 * <br>
 	 * Closes the socket and all streams.<br>
 	 * @throws IOException If an IOException occurs while closing the socket or streams.
-	 * </ul>
+	 *         </ul>
 	 */
 	public void close() throws IOException {
 		out.println((char) 4);
@@ -347,6 +371,22 @@ public class Player {
 		out.close();
 		in.close();
 		socket.close();
+	}
+
+	public static class Noise {
+
+		public final String noise;
+		public final double chance;
+
+		public Noise(String noise, double chance, Point loc) {
+			this.noise = noise;
+			this.chance = chance;
+		}
+
+		@Override
+		public String toString() {
+			return String.format("%s (%.2f%% chance)", noise, chance * 100);
+		}
 	}
 
 }
