@@ -141,11 +141,14 @@ public class Player {
 					noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", (creep ? 0.375 : 1) * treeChance(nx, ny), new Point(nx, ny)));
 					return "You walked into a tree.";
 				case 2:
-					noises.add(new Noise("a splash", 0.8, new Point(nx, ny)));
+					noises.add(new Noise("a splash", 0.9, new Point(nx, ny)));
 					return "You have fallen into a river.";
 				case 3:
 					noises.add(new Noise(rand.nextBoolean() ? "footsteps" : "twigs snapping", (creep ? 0.3 : 0.8) * treeChance(nx, ny), new Point(nx, ny)));
 					return "You are standing on a log.";
+				case 4:
+					noises.add(new Noise("grass rustling", 0.4, new Point(nx, ny)));
+					return "You walked into a clearing in the forest.";
 				default:
 					return "You walked into a mysterious object.";
 			}
@@ -168,7 +171,7 @@ public class Player {
 			}
 			noises.add(new Noise("branches snapping and a loud thud", 1, new Point(this.x, this.y)));
 			Point tree = trees.get(rand.nextInt(trees.size()));
-			int h = rand.nextInt(5);
+			int h = rand.nextInt(4) + 2;
 			int dir = rand.nextInt(4);
 			for (int i = 0; i < h; i++) {
 				Server.world[tree.y][tree.x] = 3;

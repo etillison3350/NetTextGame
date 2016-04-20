@@ -5,9 +5,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.Set;
@@ -23,21 +25,27 @@ public class Server {
 	private static Player p1, p2;
 
 	public static void main(String[] args) {
-		Scanner input = new Scanner(System.in);
-		System.out.println("Enter IP address:");
-		String address = input.nextLine();
-		int port = 0;
-		while (true) {
-			System.out.println("Enter port:");
-			try {
-				port = Integer.parseInt(input.next());
-				if (port > 0 && port <= 65535) break;
-			} catch (Exception e) {}
-		}
-		input.close();
-
 		try (ServerSocket socket = new ServerSocket()) {
-			socket.bind(new InetSocketAddress(address, port));
+			int port = 0;
+			Scanner input = new Scanner(System.in);
+			while (true) {
+				try {
+					System.out.println("Enter IP address:");
+					String address = input.nextLine();
+					while (true) {
+						System.out.println("Enter port:");
+						try {
+							port = Integer.parseInt(input.nextLine());
+							if (port > 0 && port <= 65535) break;
+						} catch (Exception e) {}
+					}
+					socket.bind(new InetSocketAddress(address, port));
+					break;
+				} catch (Exception e) {
+					print("Failed to bind to port. Perhaps another server is already running on that port?");
+				}
+			}
+			input.close();
 			print("Server bound to " + socket.getInetAddress().getHostAddress() + ":" + port);
 
 			final int x1 = Math.max(0, Math.min(29, (int) (rand.nextGaussian() * 5 + 15)));
@@ -180,6 +188,15 @@ public class Server {
 			p2.close();
 		} catch (Exception e) {
 			e.printStackTrace();
+
+			try {
+				p1.print("The server has encountered an error.");
+				p1.close();
+			} catch (Exception ex) {}
+			try {
+				p2.print("The server has encountered an error.");
+				p2.close();
+			} catch (Exception ex) {}
 		}
 
 	}
@@ -216,8 +233,10 @@ public class Server {
 		int dy1 = Math.abs(y - p1.y);
 		int dx2 = Math.abs(x - p2.x);
 		int dy2 = Math.abs(y - p2.y);
-		if ((dx1 <= 3 && dy1 <= 3 && !(dx1 == 0 && dy1 == 0)) || (dx2 <= 3 && dy2 <= 3 && !(dx2 == 0 && dy2 == 0))) {
-			ret.add("a humanoid silhouette");
+		if (dx1 <= 3 && dy1 <= 3 && !(dx1 == 0 && dy1 == 0)) {
+			ret.add("a " + (dx1 + dy1 > 2 ? "distant " : "") + "humanoid silhouette");
+		} else if (dx2 <= 3 && dy2 <= 3 && !(dx2 == 0 && dy2 == 0)) {
+			ret.add("a " + (dx2 + dy2 > 2 ? "distant " : "") + "humanoid silhouette");
 		}
 
 		int trees = 0;
@@ -233,7 +252,10 @@ public class Server {
 							ret.add("water");
 							break;
 						case 3:
-							ret.add("a freshly cut log");
+							ret.add("a fallen log");
+							break;
+						case 4:
+							ret.add("an open field");
 							break;
 					}
 				} catch (ArrayIndexOutOfBoundsException e) {
@@ -304,6 +326,24 @@ public class Server {
 			}
 		}
 
+		List<Point> field = new ArrayList<>();
+		int fx = rand.nextInt(30), fy = rand.nextInt(30);
+		field.add(new Point(fx, fy));
+		ret[fy][fx] = 4;
+		for (int fs = rand.nextInt(25) + 25; field.size() < fs;) {
+			Point e = field.get(rand.nextInt(field.size()));
+			if (rand.nextFloat() > 6F / (Math.abs(fx - e.x) + Math.abs(fy - e.y))) continue;
+			List<Point> adj = new ArrayList<>();
+			if (e.x > 0 && ret[e.y][e.x - 1] != 4) adj.add(new Point(e.x - 1, e.y));
+			if (e.x < 29 && ret[e.y][e.x + 1] != 4) adj.add(new Point(e.x + 1, e.y));
+			if (e.y > 0 && ret[e.y - 1][e.x] != 4) adj.add(new Point(e.x, e.y - 1));
+			if (e.y < 29 && ret[e.y + 1][e.x] != 4) adj.add(new Point(e.x, e.y + 1));
+			if (adj.size() <= 0) continue;
+			Point n = adj.get(rand.nextInt(adj.size()));
+			ret[n.y][n.x] = 4;
+			field.add(n);
+		}
+
 		final int rvr = rand.nextInt(4) + 2;
 		for (int r = 0; r < rvr; r++) {
 			int side = rand.nextInt(4);
@@ -329,7 +369,7 @@ public class Server {
 
 			Point[] nodes = {new Point(node.x - 1, node.y), new Point(node.x + 1, node.y), new Point(node.x, node.y - 1), new Point(node.x, node.y + 1)};
 			for (Point n : nodes) {
-				if (n.x < 0 || n.x >= 30 || n.y < 0 || n.y >= 30 || closed.contains(n) || open.contains(n) || ret[n.y][n.x] != 0) continue;
+				if (n.x < 0 || n.x >= 30 || n.y < 0 || n.y >= 30 || closed.contains(n) || open.contains(n) || !traversable(ret[n.y][n.x])) continue;
 
 				if (n.x == x1 && n.y == y1) return ret;
 

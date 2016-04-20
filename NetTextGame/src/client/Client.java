@@ -2,6 +2,7 @@ package client;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -31,6 +32,7 @@ public class Client extends JFrame {
 
 	private final JTextArea textArea;
 	private final JTextField textField;
+	private final JScrollPane scroll;
 
 	private PrintWriter out;
 	private BufferedReader in;
@@ -45,6 +47,7 @@ public class Client extends JFrame {
 
 		this.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 		this.setSize(640, 480);
+		this.setMinimumSize(new Dimension(384, 192));
 
 		this.setBackground(Color.BLACK);
 
@@ -56,10 +59,11 @@ public class Client extends JFrame {
 		this.textArea.setBackground(Color.BLACK);
 		this.textArea.setForeground(Color.WHITE);
 		this.textArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 1, 5));
-		JScrollPane scroll = new JScrollPane(this.textArea);
-		scroll.setBackground(Color.LIGHT_GRAY);
-		scroll.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
-		this.add(scroll);
+		this.scroll = new JScrollPane(this.textArea);
+		this.scroll.getVerticalScrollBar().setUI(new GrayScrollBarUI());
+		this.scroll.setBackground(Color.LIGHT_GRAY);
+		this.scroll.setBorder(BorderFactory.createEmptyBorder(0, 0, 2, 0));
+		this.add(this.scroll);
 
 		this.textField = new JTextField();
 		this.textField.setBackground(Color.BLACK);
@@ -70,28 +74,28 @@ public class Client extends JFrame {
 
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				try {
-					textArea.append("> " + textField.getText() + "\n");
-					if (address == null) {
-						address = textField.getText();
-						textField.setText("");
-					} else if (port < 1) {
-						try {
-							port = Integer.parseInt(textField.getText());
-							if (port < 0 || port > 65535) {
-								port = 0;
-								append("Please enter a valid port (between 1 and 65535 inclusive).\n");
-							} else {
-								textField.setText("");
-							}
-						} catch (NumberFormatException exception) {}
-					} else {
-						out.println(textField.getText());
-						out.flush();
-						textField.setText("");
-						textField.setEnabled(false);
-					}
-				} catch (InterruptedException exception) {}
+				scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
+				scroll.repaint();
+				textArea.append("> " + textField.getText() + "\n");
+				if (address == null) {
+					address = textField.getText();
+					textField.setText("");
+				} else if (port < 1) {
+					try {
+						port = Integer.parseInt(textField.getText());
+						if (port < 0 || port > 65535) {
+							port = 0;
+							append("Please enter a valid port (between 1 and 65535 inclusive).\n");
+						} else {
+							textField.setText("");
+						}
+					} catch (NumberFormatException exception) {}
+				} else {
+					out.println(textField.getText());
+					out.flush();
+					textField.setText("");
+					textField.setEnabled(false);
+				}
 			}
 		});
 		this.textField.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
@@ -156,7 +160,6 @@ public class Client extends JFrame {
 						}
 
 						append(s + "\n");
-						scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
 					}
 
 					confirmClose = true;
@@ -165,11 +168,9 @@ public class Client extends JFrame {
 					out.close();
 					socket.close();
 				} catch (SocketException e) {
-					try {
-						textField.setEnabled(false);
-						append("Your connection to the server has been lost.");
-						confirmClose = true;
-					} catch (InterruptedException e1) {}
+					textField.setEnabled(false);
+					append("Your connection to the server has been lost.");
+					confirmClose = true;
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -177,10 +178,33 @@ public class Client extends JFrame {
 		}).start();
 	}
 
-	private synchronized void append(String text) throws InterruptedException {
+	private void append(String text) {
+		new Thread(new Append(text)).start();
+	}
+
+	private synchronized void appendText(String text) throws InterruptedException {
+		scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
+		scroll.repaint();
 		for (char c : text.toCharArray()) {
 			textArea.append(Character.toString(c));
 			Thread.sleep(15);
 		}
+	}
+
+	private final class Append implements Runnable {
+
+		private final String text;
+
+		public Append(String text) {
+			this.text = text;
+		}
+
+		@Override
+		public void run() {
+			try {
+				appendText(text);
+			} catch (InterruptedException e) {}
+		}
+
 	}
 }
