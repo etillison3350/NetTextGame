@@ -128,7 +128,7 @@ public class Player {
 			switch (move(nx, ny)) {
 				case 0:
 					noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", (creep ? 0.375 : 1) * treeChance(nx, ny), new Point(nx, ny)));
-					return "You walked " + dir + ".";
+					return "You walked " + dir + ".\nYou are in the forest.";
 				case -1:
 					if (hunter) {
 						noises.add(new Noise(rand.nextBoolean() ? "leaves crinkling" : "twigs snapping", (creep ? 0.375 : 1) * treeChance(nx, ny), new Point(nx, ny)));
@@ -142,13 +142,13 @@ public class Player {
 					return "You walked into a tree.";
 				case 2:
 					noises.add(new Noise("a splash", 0.9, new Point(nx, ny)));
-					return "You have fallen into a river.";
+					return "You walked " + dir + ".\nYou are in a river.";
 				case 3:
 					noises.add(new Noise(rand.nextBoolean() ? "footsteps" : "twigs snapping", (creep ? 0.3 : 0.8) * treeChance(nx, ny), new Point(nx, ny)));
 					return "You are standing on a log.";
 				case 4:
 					noises.add(new Noise("grass rustling", 0.4, new Point(nx, ny)));
-					return "You walked into a clearing in the forest.";
+					return "You walked " + dir + ".\nYou are in a clearing.";
 				default:
 					return "You walked into a mysterious object.";
 			}
