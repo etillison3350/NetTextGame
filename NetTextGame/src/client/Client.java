@@ -149,11 +149,6 @@ public class Client extends JFrame {
 					while (true) {
 						String s = in.readLine();
 						if (s.charAt(0) == 4) break;
-						if (s.charAt(0) == '>') {
-							textField.setEnabled(true);
-							textField.requestFocus();
-							continue;
-						}
 
 						if (s.matches(".*?You are (?:hunting|being hunted).*?")) {
 							Client.this.setTitle("Network Text Game - " + (s.contains("being") ? "Hunted" : "Hunter"));

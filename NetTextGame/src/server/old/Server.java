@@ -1,4 +1,4 @@
-package server;
+package server.old;
 
 import java.awt.Point;
 import java.io.IOException;
@@ -77,7 +77,7 @@ public class Server {
 			print("Generating world...");
 			generateWorld(xc, yc, x1, y1, x2, y2);
 
-			crystal = new Entity("item-the crystal", xc, yc, true, -2);
+			crystal = new ItemEntity(new Item(ItemType.CRYSTAL), xc, yc);
 			objects.add(crystal);
 
 			print("Waiting for players to connect...");
@@ -114,28 +114,22 @@ public class Server {
 			p1.print("You are " + (p1.hunter ? "hunting." : "being hunted."));
 			p2.print("You are " + (p2.hunter ? "hunting." : "being hunted."));
 			if (p1.hunter)
-				p1.resetMoves();
+				p1.addMoves();
 			else
-				p2.resetMoves();
+				p2.addMoves();
 
-			new Thread(runnableFor(p1)).start();
-			new Thread(runnableFor(p2)).start();
+			new Thread(new Runnable() {
+
+				@Override
+				public void run() {
+
+				}
+
+			}).start();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 
-	}
-
-	private static boolean gameOver = false;
-
-	private static Runnable runnableFor(Player player) {
-		return new Runnable() {
-
-			@Override
-			public void run() {
-				while (!gameOver);
-			}
-		};
 	}
 
 	/**
@@ -230,7 +224,7 @@ public class Server {
 				}
 			}
 		}
-
+		
 		try {
 			Pathfinder.getPathFromEdge(new Point(xc, yc));
 			Pathfinder.getPath(new Point(xc, yc), new Point(x1, y1));
@@ -241,7 +235,7 @@ public class Server {
 	}
 
 	public static boolean isPassable(int x, int y) {
-		if (x < 0 || x >= 30 || y < 0 || y >= 30) return false;
+		if (x < 0 || x >= 30 || y < 0 || y >= 30) return false; 
 		for (Entity e : getEntitiesAt(x, y)) {
 			if (!e.isPassable()) return false;
 		}
