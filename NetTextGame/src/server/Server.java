@@ -11,7 +11,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -37,7 +36,7 @@ public class Server {
 						System.out.println("Enter port:");
 						try {
 							port = Integer.parseInt(input.nextLine());
-							if (port > 0 && port <= 65535) break;
+							if (port > 0 && port < 65536) break;
 						} catch (Exception e) {}
 					}
 					socket.bind(new InetSocketAddress(address, port));
@@ -63,7 +62,7 @@ public class Server {
 				double r = 15 + 3.21 * rand.nextGaussian();
 				x1 = (int) Math.round(r * Math.cos(t) + 14.5);
 				y1 = (int) Math.round(r * Math.sin(t) + 14.5);
-			} while (x1 < 0 || y1 >= 30 || x1 < 0 || y1 >= 30);
+			} while (x1 < 0 || x1 >= 30 || y1 < 0 || y1 >= 30);
 
 			int x2, y2;
 			do {
@@ -72,8 +71,6 @@ public class Server {
 				x2 = (int) Math.round(r * Math.cos(t) + x1);
 				y2 = (int) Math.round(r * Math.sin(t) + y1);
 			} while (x2 < 0 || x2 >= 30 || y2 < 0 || y2 >= 30);
-			final int xp = x1;
-			final int yp = y1;
 			print("Generating world...");
 			generateWorld(xc, yc, x1, y1, x2, y2);
 
@@ -81,16 +78,16 @@ public class Server {
 			objects.add(crystal);
 
 			print("Waiting for players to connect...");
-			Thread hunter = new Thread(new Runnable() {
+			p1 = new Player(socket.accept(), 1, x1, y1);
+			print("Accepted player 1 at " + p1.socket.getInetAddress().getHostAddress());
+			Thread player1 = new Thread(new Runnable() {
 
 				@Override
 				public void run() {
 					try {
-						p1 = new Player(socket.accept(), 1, xp, yp);
-						print("Accepted player 1 at " + p1.socket.getInetAddress().getHostAddress());
 						p1.print("Welcome.\nWould you like to be the hunter or the hunted?");
 						while (true) {
-							String h = p1.read();
+							String h = p1.read().toLowerCase();
 							if (h.matches("hunte[dr]")) {
 								p1.hunter = h.charAt(5) == 'r';
 								break;
@@ -106,20 +103,21 @@ public class Server {
 				}
 
 			});
-			hunter.start();
+			player1.start();
 			p2 = new Player(socket.accept(), 2, x2, y2);
 			p2.print("Welcome.\nWaiting for the other player...");
-			hunter.join();
+			p2.hunter = !p1.hunter;
+			player1.join();
 
 			p1.print("You are " + (p1.hunter ? "hunting." : "being hunted."));
 			p2.print("You are " + (p2.hunter ? "hunting." : "being hunted."));
-			if (p1.hunter)
+			if (p2.hunter)
 				p1.resetMoves();
 			else
 				p2.resetMoves();
 
-			new Thread(runnableFor(p1)).start();
-			new Thread(runnableFor(p2)).start();
+			new Thread(runnableFor(p1, p2)).start();
+			new Thread(runnableFor(p2, p1)).start();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -128,12 +126,46 @@ public class Server {
 
 	private static boolean gameOver = false;
 
-	private static Runnable runnableFor(Player player) {
+	private static Runnable runnableFor(Player player, Player other) {
 		return new Runnable() {
 
 			@Override
 			public void run() {
-				while (!gameOver);
+				while (!gameOver) {
+					try {
+						if (player.moves > 0) player.print("Enter an action (" + player.moves + " moves left):");
+						player.execute(player.read().toLowerCase());
+					} catch (IOException e) {
+						other.print("The other player has disconnected from ther server.");
+						gameOver = true;
+						break;
+					}
+
+					if (player.hunter && player.getX() == other.getX() && player.getY() == other.getY()) {
+						player.print("You come upon a lone man walking through the forest. Drawing a knife, you approach the man from behind, and drive the knife between his ribs.\nYou win!");
+						other.print("You hear a twig snap behind you. You turn around, but there is nobody there. As you turn back around, you see a flash of silver, then you cry out in pain and collapse in a pool of your own blood.\nYou lose.");
+						gameOver = true;
+						break;
+					} else if (!player.hunter && player.escaped) {
+						player.print("In the corner of your vision, you see a faint light. As you sprint toward it, you recognize a streetlight overlooking a road. You have escaped!\nYou win!");
+						other.print("You search for hours longer, but as the sun illuminates the forest, you have found nothing. Your quarry must have escaped.\nYou lose.");
+						gameOver = true;
+						break;
+					}
+
+					if (player.moves <= 0 && player.moves > -32768) {
+						player.moves = -65536;
+						other.resetMoves();
+						other.print("Enter an action (" + other.moves + " moves left):");
+					}
+				}
+
+				try {
+					player.close();
+				} catch (IOException e) {}
+				try {
+					other.close();
+				} catch (IOException e) {}
 			}
 		};
 	}
@@ -156,9 +188,11 @@ public class Server {
 	 * <ul>
 	 * <li><b><i>generateWorld</i></b><br>
 	 * <br>
-	 * {@code private static int[][] generateWorld(int x1, int y1, int x2, int y2)}<br>
+	 * {@code private static void generateWorld(int xc, int yc, int x1, int y1, int x2, int y2)}<br>
 	 * <br>
 	 * Generates a world, making sure that players can complete their objective.<br>
+	 * @param xc The x coordinate of the crystal
+	 * @param yc The y coordinate of the crystal
 	 * @param x1 The x coordinate of the first player
 	 * @param y1 The y coordinate of the first player
 	 * @param x2 The x coordinate of the second player
@@ -226,7 +260,7 @@ public class Server {
 		for (int y = 0; y < 30; y++) {
 			for (int x = 0; x < 30; x++) {
 				if (world[y][x] == Terrain.FOREST && !(rand.nextDouble() > 0.35 || (x == xc && y == yc) || (x == x1 && y == y1) || (x == x2 && y == y2))) {
-					objects.add(new Entity("tree", x, y, false, 2));
+					objects.add(new Entity("tree", x, y, false, 2, Math.max(1, 12 + rand.nextGaussian() * 2)));
 				}
 			}
 		}
@@ -248,8 +282,8 @@ public class Server {
 		return true;
 	}
 
-	public static Set<Entity> getEntitiesAt(int x, int y) {
-		return objects.subSet(new Placeholder(x, y, false), new Placeholder(x, y, true));
+	public static List<Entity> getEntitiesAt(int x, int y) {
+		return new ArrayList<>(objects.subSet(new Placeholder(x, y, false), new Placeholder(x, y, true)));
 	}
 
 	private static final class Placeholder extends Entity {

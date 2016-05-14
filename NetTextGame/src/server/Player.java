@@ -14,10 +14,10 @@ import java.util.stream.Collectors;
 
 public class Player extends Entity {
 
-	public static final List<String> registered = Arrays.asList("alias", "list", "walk", "creep", "sneak", "quietly", "north", "south", "east", "west");
+	public static final List<String> registered = Arrays.asList("alias", "cut", "list", "walk", "creep", "sneak", "quietly", "north", "south", "east", "west");
 
-	public boolean hunter;
-	public int moves, savedMoves;
+	public boolean hunter, escaped = false;
+	public int moves = -65536, savedMoves;
 
 	public final Map<String, Double> items = new HashMap<>();
 
@@ -102,140 +102,236 @@ public class Player extends Entity {
 		}
 		commands = cmd.trim().split("\\s+");
 
-		switch (commands[0]) {
-			case "help":
-				if (commands.length == 1) {
-					print("Available commands: alias, creep, help, rest, walk.\nUse help <command> for more details.");
-				} else {
-					switch (commands[1]) {
-						case "walk":
-							print("Usage: walk <direction>\nMove in the given direction.\nMove cost: 4");
-							break;
-						case "creep":
-							print("Usage: creep <direction>\nMove quietly in the given direction.\nMove cost: 7");
-							break;
-						case "alias":
-							print("Usage: alias <term> <replacement>\nDefines the given term as the replacement.\nUsage: alias list\nLists all currently defined aliases.");
-							break;
-						case "rest":
-							print("Usage: rest [moves]\nSaves the specified number of moves (or 1, if no number is specified) until the next turn. A move has a 80% chance of being saved.");
-						case "help":
-							print("Usage: help\nGives a list of commands.\nUsage: help <command>\nGives details on the given command.");
-							break;
-					}
-				}
-				break;
-			case "alias":
-				if (commands.length < 2) {
-					print("Please enter a term to define.");
-					break;
-				}
-				
-				if (commands[1].equals("list")) {
-					aliases.forEach((alias, replacement) -> print(alias + " -> " + replacement));
-					break;
-				}
-
-				if (registered.contains(commands[1])) {
-					print("\"" + commands[1] + "\" cannot be redefined.");
-					break;
-				}
-
-				if (commands.length < 3) {
-					print("Please enter a term or terms to replace \"" + commands[1] + "\" with");
-					break;
-				}
-
-				aliases.put(commands[1], Arrays.stream(commands).skip(2).collect(Collectors.joining(" ")));
-				print(commands[1] + " has been redefined as " + aliases.get(commands[1]));
-				break;
-			case "creep":
-			case "walk":
-				if (commands.length < 2) {
-					print("Please enter a direction to move in.");
-					break;
-				}
-
-				boolean quiet = commands[0].equals("creep");
-				String dir = commands[1];
-
-				if (commands[1].equals("quietly")) {
-					dir = commands[1];
-					quiet = true;
-					break;
-				}
-				
-				if (moves < (quiet ? 7 : 4)) {
-					print("You don't have enough moves left to do that.");
-					break;
-				}
-
-				int nx = this.getX(), ny = this.getY();
-				switch (dir) {
-					case "north":
-						ny--;
+		if (commands[0].equals("help")) {
+			if (commands.length == 1) {
+				print("Available commands: alias, creep, cut, help, rest, walk.\nUse help <command> for more details.");
+			} else {
+				switch (commands[1]) {
+					case "walk":
+						print("Usage: walk <direction>\nMove in the given direction.\nMove cost: 4");
 						break;
-					case "east":
-						nx++;
+					case "creep":
+						print("Usage: creep <direction>\nMove quietly in the given direction.\nMove cost: 7");
 						break;
-					case "south":
-						ny++;
+					case "alias":
+						print("Usage: alias <term> <replacement>\nDefines the given term as the replacement.\nUsage: alias list\nLists all currently defined aliases.");
 						break;
-					case "west":
-						nx--;
+					case "cut":
+						print("Usage: cut <direction>\nAttempt to cut down the tree in the given direction. Large trees will be damaged.\nMove cost: 3, or 1 if there is not a tree in the given direction.");
+						break;
+					case "rest":
+						print("Usage: rest [moves]\nSaves the specified number of moves (or 1, if no number is specified) until the next turn. A move has a 80% chance of being saved.");
+					case "help":
+						print("Usage: help\nGives a list of commands.\nUsage: help <command>\nGives details on the given command.");
 						break;
 					default:
-						nx = Integer.MIN_VALUE;
-						print("You can't walk that way.");
-						break;
+						print("That is not a valid command.");
 				}
-				if (nx > -65536) {
-					moves -= 4;
-					boolean move = true;
-					for (Entity e : Server.getEntitiesAt(nx, ny)) {
+			}
+		} else if (commands[0].equals("alias")) {
+			if (commands.length < 2) {
+				print("Please enter a term to define.");
+				return;
+			}
+
+			if (commands[1].equals("list")) {
+				if (aliases.isEmpty()) {
+					print("You haven't defined any aliases.");
+				} else {
+					aliases.forEach((alias, replacement) -> print(alias + " -> " + replacement));
+				}
+				return;
+			}
+
+			if (registered.contains(commands[1])) {
+				print("\"" + commands[1] + "\" cannot be redefined.");
+				return;
+			}
+
+			if (commands.length < 3) {
+				print("Please enter a term or terms to replace \"" + commands[1] + "\" with");
+				return;
+			}
+
+			aliases.put(commands[1], Arrays.stream(commands).skip(2).collect(Collectors.joining(" ")));
+			print(commands[1] + " has been redefined as " + aliases.get(commands[1]));
+		} else if (commands[0].equals("creep") || commands[0].equals("walk")) {
+			if (commands.length < 2) {
+				print("Please enter a direction to move in.");
+				return;
+			}
+
+			boolean quiet = commands[0].equals("creep");
+			String dir = commands[1];
+
+			if (commands[1].equals("quietly")) {
+				if (commands.length < 3) {
+					print("Please enter a direction to move in.");
+					return;
+				}
+
+				dir = commands[2];
+				quiet = true;
+			}
+
+			if (moves < (quiet ? 7 : 4)) {
+				print("You don't have enough moves left to do that.");
+				return;
+			}
+
+			int nx = this.getX(), ny = this.getY();
+			switch (dir) {
+				case "north":
+					ny--;
+					break;
+				case "east":
+					nx++;
+					break;
+				case "south":
+					ny++;
+					break;
+				case "west":
+					nx--;
+					break;
+				default:
+					print("You can't walk that way.");
+					return;
+			}
+			moves -= quiet ? 7 : 4;
+			boolean move = true;
+			String stand = null;
+			for (Entity e : Server.getEntitiesAt(nx, ny)) {
+				if (!e.isPassable()) {
+					print("You walked into a" + (e.getName().matches("^[aeiou].+?") ? "n " : " ") + e.getName() + ".");
+					move = false;
+					break;
+				}
+
+				if (e.getName().startsWith("item")) {
+					print("You found " + e.getName().substring(5));
+					items.put(e.getName().substring(5), e.getState());
+				} else if (e instanceof Silhouette && ((Silhouette) e).summoner != this) {
+					print("You see a humanoid figure. It walks into you, and dissolves into shadows.");
+				} else if (stand == null) {
+					stand = e.getName();
+				}
+			}
+
+			if (move) {
+				this.setX(nx);
+				this.setY(ny);
+				print("You walked " + dir);
+				if (stand != null) print("You are standing on a" + stand);
+			}
+			
+			
+		} else if (commands[0].equals("cut")) {
+			if (commands.length < 2) {
+				print("Please enter a direction to cut in.");
+				return;
+			}
+
+			if (moves < 3) {
+				print("You don't have enough moves left to do that.");
+				return;
+			}
+
+			List<Entity> ents;
+			switch (commands[1]) {
+				case "north":
+					ents = Server.getEntitiesAt(this.getX(), this.getY() - 1);
+					break;
+				case "east":
+					ents = Server.getEntitiesAt(this.getX() + 1, this.getY());
+					break;
+				case "south":
+					ents = Server.getEntitiesAt(this.getX(), this.getY() + 1);
+					break;
+				case "west":
+					ents = Server.getEntitiesAt(this.getX() - 1, this.getY());
+					break;
+				default:
+					print("You can't cut in that direction.");
+					return;
+			}
+
+			if (ents.stream().allMatch(e -> e.isPassable())) {
+				if (ents.stream().anyMatch(e -> e instanceof Silhouette)) {
+					ents.stream().filter(e -> e instanceof Silhouette).forEach(Server.objects::remove);
+					print("You conjure a magical axe, and swing with all your might. Too late, you realize that what you though was a tree is actually a humanoid figure. As your axe passes thourhg it, it dissolves into shadow.");
+					moves -= Server.rand.nextInt(2) + 1;
+				} else {
+					if (Server.rand.nextInt(9) == 0) {
+						print("You conjure a magical axe, and swing with all your might. Too late, you realize that there's nothing there, and narrowly miss your leg.");
+						moves -= 2;
+					} else {
+						print("There's nothing to cut in the " + commands[1] + ".");
+						moves--;
+					}
+				}
+			} else {
+				if (ents.stream().anyMatch(e -> e.getName().equals("tree"))) {
+					for (Entity e : ents) {
+						if (e.getName().equals("tree")) {
+							if (e.addState(-Math.abs(Server.rand.nextGaussian()) * 1.25 - 1) < 0) {
+								int dir = Server.rand.nextInt(4);
+								int cx = e.getState() > 4 ? (dir - 1) % 2 : 0;
+								int cy = e.getState() > 4 ? (dir - 2) % 2 : 0;
+								boolean hit = this.getX() == e.getX() + cx && this.getY() == e.getY() + cy;
+								if (hit) {
+									moves--;
+									if (moves < 0) savedMoves--;
+								}
+								print("You conjure a magical axe, and swing with all your might. The tree you hit falls over" + (hit ? ", toward you, and you jump out of the way. The tree narrowly misses you." : "."));
+								Server.objects.remove(e);
+								if (e.getState() > 4) {
+									Server.objects.add(new Entity("stump", e.getX(), e.getY(), true, 6));
+									for (int i = 1; i < e.getState() * 0.75; i++) {
+										Server.objects.add(new Entity("fallen log", e.getX() * cx * i, e.getY() + cy * i, true, 6, e.getState()));
+									}
+								}
+							} else {
+								print("You conjure a magical axe, and swing with all your might. You made a large dent in the tree, but it does not fall down.");
+							}
+						} else if (e.getName().startsWith("item")) {
+							print("You found " + e.getName().substring(5));
+							items.put(e.getName().substring(5), e.getState());
+						}
+					}
+					moves -= 3;
+				} else {
+					for (Entity e : ents) {
 						if (!e.isPassable()) {
-							System.out.println("You walked into a" + (e.getName().matches("^[aeiou].+?") ? "n " : " ") + e.getName() + ".");
-							move = false;
+							print("You conjure a magical axe, and swing with all your might. Too late, you realize that what you though was a tree is actually a " + e.getName() + ". Your axe glances off, and you narrowly miss your leg.");
+							moves -= 3;
 							break;
 						}
-
-						if (e.getName().startsWith("item")) {
-							print("You found " + e.getName().substring(5));
-						} else if (e instanceof Silhouette && ((Silhouette) e).summoner != this) {
-							print("You see a humanoid figure. It walks into you, and dissolves into shadows.");
-						}
-					}
-
-					if (move) {
-						this.setX(nx);
-						this.setY(ny);
-						print("You walked " + dir);
 					}
 				}
-				break;
-			case "rest":
-				int n = 1;
-				try {
-					n = Integer.parseInt(commands[1]);
-				} catch (Exception e) {}
+			}
+		} else if (commands[0].equals("rest")) {
+			int n = 1;
+			try {
+				n = Integer.parseInt(commands[1]);
+			} catch (Exception e) {}
 
-				if (n < 1) {
-					print("You can't save less than one move.");
-					break;
-				} else if (n > moves) {
-					print("You don't have that many moves to save.");
+			if (n < 1) {
+				print("You can't save less than one move.");
+				return;
+			} else if (n > moves) {
+				print("You don't have that many moves to save.");
+				return;
+			}
+
+			int sm = 0;
+			for (int i = 0; i < n; i++) {
+				moves--;
+				if (Server.rand.nextInt(5) != 0) {
+					savedMoves++;
+					sm++;
 				}
-				
-				int sm = 0;
-				for (int i = 0; i < n; i++) {
-					moves--;
-					if (Server.rand.nextInt(5) != 0) {
-						savedMoves++;
-						sm++;
-					}
-				}
-				print("You saved " + sm + " moves.");
-				break;
+			}
+			print("You saved " + sm + " move" + (sm == 1 ? "." : "s."));
 		}
 	}
 

@@ -13,6 +13,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.ArrayDeque;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -40,8 +41,10 @@ public class Client extends JFrame {
 	private String address;
 	private int port;
 
-	private boolean confirmClose = true;
+	private boolean confirmClose = true, runAppend = true;
 
+	private ArrayDeque<String> appendQueue = new ArrayDeque<>();
+	
 	public Client() {
 		super("Network Text Game");
 
@@ -85,7 +88,7 @@ public class Client extends JFrame {
 						port = Integer.parseInt(textField.getText());
 						if (port < 0 || port > 65535) {
 							port = 0;
-							append("Please enter a valid port (between 1 and 65535 inclusive).\n");
+							appendQueue.addLast("Please enter a valid port (between 1 and 65535 inclusive).\n");
 						} else {
 							textField.setText("");
 						}
@@ -94,7 +97,6 @@ public class Client extends JFrame {
 					out.println(textField.getText());
 					out.flush();
 					textField.setText("");
-					textField.setEnabled(false);
 				}
 			}
 		});
@@ -117,23 +119,45 @@ public class Client extends JFrame {
 
 			@Override
 			public void run() {
+				while (runAppend) {
+					try {
+						if (appendQueue.isEmpty()) {
+							Thread.sleep(100);
+						} else {
+							String text = appendQueue.pop();
+							scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
+							scroll.repaint();
+							for (char c : text.toCharArray()) {
+								textArea.append(Character.toString(c));
+								Thread.sleep(15);
+							}
+						}
+					} catch (Exception e) {}
+				}
+			}
+		}).start();
+
+		new Thread(new Runnable() {
+
+			@Override
+			public void run() {
 				try {
 					Socket socket;
 					while (true) {
 						try {
-							append("Enter IP address:\n");
+							appendQueue.addLast("Enter IP address:\n");
 							while (address == null) {
 								Thread.sleep(10);
 							}
 
-							append("Enter port:\n");
+							appendQueue.addLast("Enter port:\n");
 							while (port < 1) {
 								Thread.sleep(10);
 							}
 							socket = new Socket(address, port);
 							break;
 						} catch (Exception e) {
-							append("Failed to connect to " + address + ":" + port + ".\n");
+							appendQueue.addLast("Failed to connect to " + address + ":" + port + ".\n");
 							address = null;
 							port = 0;
 						}
@@ -142,30 +166,32 @@ public class Client extends JFrame {
 					out = new PrintWriter(socket.getOutputStream());
 					in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-					append("Connected to " + socket.getInetAddress().getHostAddress() + ":" + port + "\n");
+					appendQueue.addLast("Connected to " + socket.getInetAddress().getHostAddress() + ":" + port + "\n");
 
 					confirmClose = false;
 
 					while (true) {
 						String s = in.readLine();
+						System.out.println(s);
 						if (s.charAt(0) == 4) break;
 
 						if (s.matches(".*?You are (?:hunting|being hunted).*?")) {
 							Client.this.setTitle("Network Text Game - " + (s.contains("being") ? "Hunted" : "Hunter"));
 						}
 
-						append(s + "\n");
+						appendQueue.addLast(s + "\n");
 					}
 
 					confirmClose = true;
+					runAppend = false;
 
 					in.close();
 					out.close();
 					socket.close();
 				} catch (SocketException e) {
-					textField.setEnabled(false);
-					append("Your connection to the server has been lost.");
+					appendQueue.addLast("Your connection to the server has been lost.");
 					confirmClose = true;
+					runAppend = false;
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -173,33 +199,10 @@ public class Client extends JFrame {
 		}).start();
 	}
 
-	private void append(String text) {
-		new Thread(new Append(text)).start();
+	@Override
+	public void setVisible(boolean b) {
+		super.setVisible(b);
+		this.textField.requestFocus();
 	}
-
-	private synchronized void appendText(String text) throws InterruptedException {
-		scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
-		scroll.repaint();
-		for (char c : text.toCharArray()) {
-			textArea.append(Character.toString(c));
-			Thread.sleep(15);
-		}
-	}
-
-	private final class Append implements Runnable {
-
-		private final String text;
-
-		public Append(String text) {
-			this.text = text;
-		}
-
-		@Override
-		public void run() {
-			try {
-				appendText(text);
-			} catch (InterruptedException e) {}
-		}
-
-	}
+	
 }
