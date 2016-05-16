@@ -106,8 +106,8 @@ public class Server {
 			player1.start();
 			p2 = new Player(socket.accept(), 2, x2, y2);
 			p2.print("Welcome.\nWaiting for the other player...");
-			p2.hunter = !p1.hunter;
 			player1.join();
+			p2.hunter = !p1.hunter;
 
 			p1.print("You are " + (p1.hunter ? "hunting." : "being hunted."));
 			p2.print("You are " + (p2.hunter ? "hunting." : "being hunted."));
@@ -115,6 +115,9 @@ public class Server {
 				p1.resetMoves();
 			else
 				p2.resetMoves();
+
+			objects.add(p1);
+			objects.add(p2);
 
 			new Thread(runnableFor(p1, p2)).start();
 			new Thread(runnableFor(p2, p1)).start();
@@ -133,10 +136,15 @@ public class Server {
 			public void run() {
 				while (!gameOver) {
 					try {
-						if (player.moves > 0) player.print("Enter an action (" + player.moves + " moves left):");
+						if (player.moves > 0) player.print("Enter an action (" + player.moves + " move" + (player.moves == 1 ? "" : "s") + " left):");
 						player.execute(player.read().toLowerCase());
 					} catch (IOException e) {
 						other.print("The other player has disconnected from ther server.");
+						gameOver = true;
+						break;
+					} catch (Exception e) {
+						player.print("The server has encountered an error.");
+						other.print("The server has encountered an error.");
 						gameOver = true;
 						break;
 					}
@@ -155,8 +163,10 @@ public class Server {
 
 					if (player.moves <= 0 && player.moves > -32768) {
 						player.moves = -65536;
+						player.print("Waiting for other player...");
 						other.resetMoves();
-						other.print("Enter an action (" + other.moves + " moves left):");
+						other.print("Enter an action (" + other.moves + " move" + (other.moves == 1 ? "" : "s") + " left):");
+						generateNewItems();
 					}
 				}
 
@@ -168,6 +178,41 @@ public class Server {
 				} catch (IOException e) {}
 			}
 		};
+	}
+
+	private static enum Item {
+		SPEED("swiftness", 9, 20),
+		QUIET("stealth", 9, 20),
+		ENERGY("tenacity", 9, 20),
+		COMPASS("compass", 2, 4),
+		GHOST("incorporeality", 9, 20),
+		GUIDE("somnambulism", 7, 16),
+		HERBICIDE("arboricide", 2, 6),
+		SILHOUETTE("silhouette", 1, 2),
+		SAPLING("sapling", 1, 4);
+
+		public final String name;
+		public final double min, max;
+
+		private Item(String name, double minDur, double maxDur) {
+			this.name = name;
+			this.min = minDur;
+			this.max = maxDur;
+		}
+
+		public Entity makeEntity(int x, int y) {
+			return new Entity("item-" + this.name, x, y, true, 1, Math.round(min + rand.nextGaussian() * ((max - min) / 6.58106)));
+		}
+	}
+
+	private static void generateNewItems() {
+		for (int i = rand.nextInt(3); i > -2; i--) {
+			int x = rand.nextInt(30);
+			int y = rand.nextInt(30);
+			if ((p1.getX() == x && p1.getY() == y) || (p2.getX() == x && p2.getY() == y)) continue;
+
+			objects.add(Item.values()[rand.nextInt(Item.values().length)].makeEntity(x, y));
+		}
 	}
 
 	/**
@@ -260,7 +305,8 @@ public class Server {
 		for (int y = 0; y < 30; y++) {
 			for (int x = 0; x < 30; x++) {
 				if (world[y][x] == Terrain.FOREST && !(rand.nextDouble() > 0.35 || (x == xc && y == yc) || (x == x1 && y == y1) || (x == x2 && y == y2))) {
-					objects.add(new Entity("tree", x, y, false, 2, Math.max(1, 12 + rand.nextGaussian() * 2)));
+					double ts = Math.max(1, 12 + rand.nextGaussian() * 2);
+					objects.add(new Entity("tree", x, y, false, 2, ts, ts));
 				}
 			}
 		}

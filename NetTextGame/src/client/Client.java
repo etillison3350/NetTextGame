@@ -44,7 +44,7 @@ public class Client extends JFrame {
 	private boolean confirmClose = true, runAppend = true;
 
 	private ArrayDeque<String> appendQueue = new ArrayDeque<>();
-	
+
 	public Client() {
 		super("Network Text Game");
 
@@ -77,9 +77,11 @@ public class Client extends JFrame {
 
 			@Override
 			public void actionPerformed(ActionEvent e) {
+				if (textField.getText().isEmpty()) return;
+
 				scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
 				scroll.repaint();
-				textArea.append("> " + textField.getText() + "\n");
+				appendQueue.addLast("> " + textField.getText() + "\n");
 				if (address == null) {
 					address = textField.getText();
 					textField.setText("");
@@ -94,8 +96,10 @@ public class Client extends JFrame {
 						}
 					} catch (NumberFormatException exception) {}
 				} else {
-					out.println(textField.getText());
-					out.flush();
+					if (out != null) {
+						out.println(textField.getText());
+						out.flush();
+					}
 					textField.setText("");
 				}
 			}
@@ -125,12 +129,16 @@ public class Client extends JFrame {
 							Thread.sleep(100);
 						} else {
 							String text = appendQueue.pop();
+							if (text.startsWith(">")) {
+								textArea.append(text);
+							} else {
+								for (char c : text.toCharArray()) {
+									textArea.append(Character.toString(c));
+									Thread.sleep(15);
+								}
+							}
 							scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
 							scroll.repaint();
-							for (char c : text.toCharArray()) {
-								textArea.append(Character.toString(c));
-								Thread.sleep(15);
-							}
 						}
 					} catch (Exception e) {}
 				}
@@ -145,6 +153,7 @@ public class Client extends JFrame {
 					Socket socket;
 					while (true) {
 						try {
+							textField.setEnabled(true);
 							appendQueue.addLast("Enter IP address:\n");
 							while (address == null) {
 								Thread.sleep(10);
@@ -154,6 +163,7 @@ public class Client extends JFrame {
 							while (port < 1) {
 								Thread.sleep(10);
 							}
+							textField.setEnabled(false);
 							socket = new Socket(address, port);
 							break;
 						} catch (Exception e) {
@@ -168,11 +178,13 @@ public class Client extends JFrame {
 
 					appendQueue.addLast("Connected to " + socket.getInetAddress().getHostAddress() + ":" + port + "\n");
 
+					textField.setEnabled(true);
+					textField.requestFocus();
+
 					confirmClose = false;
 
 					while (true) {
 						String s = in.readLine();
-						System.out.println(s);
 						if (s.charAt(0) == 4) break;
 
 						if (s.matches(".*?You are (?:hunting|being hunted).*?")) {
@@ -204,5 +216,5 @@ public class Client extends JFrame {
 		super.setVisible(b);
 		this.textField.requestFocus();
 	}
-	
+
 }

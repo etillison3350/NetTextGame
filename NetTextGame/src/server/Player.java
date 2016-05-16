@@ -10,16 +10,17 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public class Player extends Entity {
 
-	public static final List<String> registered = Arrays.asList("alias", "cut", "list", "walk", "creep", "sneak", "quietly", "north", "south", "east", "west");
+	public static final List<String> registered = Arrays.asList("alias", "cut", "items", "list", "walk", "creep", "sneak", "quietly", "north", "south", "east", "west");
 
 	public boolean hunter, escaped = false;
 	public int moves = -65536, savedMoves;
 
-	public final Map<String, Double> items = new HashMap<>();
+	public final Map<String, Double> items = new TreeMap<>();
 
 	private final Map<String, String> aliases = new HashMap<>();
 
@@ -55,6 +56,10 @@ public class Player extends Entity {
 			out.flush();
 			System.out.println(Server.date.format(new Date()) + " [SERVER -> " + this.getName() + "] " + text);
 		}
+	}
+
+	public void printf(String format, Object... args) {
+		print(String.format(format, args));
 	}
 
 	/**
@@ -104,7 +109,7 @@ public class Player extends Entity {
 
 		if (commands[0].equals("help")) {
 			if (commands.length == 1) {
-				print("Available commands: alias, creep, cut, help, rest, walk.\nUse help <command> for more details.");
+				print("Available commands: alias, creep, cut, help, items, rest, walk.\nUse help <command> for more details.");
 			} else {
 				switch (commands[1]) {
 					case "walk":
@@ -114,18 +119,23 @@ public class Player extends Entity {
 						print("Usage: creep <direction>\nMove quietly in the given direction.\nMove cost: 7");
 						break;
 					case "alias":
-						print("Usage: alias <term> <replacement>\nDefines the given term as the replacement.\nUsage: alias list\nLists all currently defined aliases.");
+						print("Usage: alias <term> <replacement>\nDefine the given term as the replacement.\nUsage: alias list\nLists all currently defined aliases.");
 						break;
 					case "cut":
 						print("Usage: cut <direction>\nAttempt to cut down the tree in the given direction. Large trees will be damaged.\nMove cost: 3, or 1 if there is not a tree in the given direction.");
 						break;
+					case "items":
+						print("Usage: items\nLists all items that you have.");
+						break;
 					case "rest":
-						print("Usage: rest [moves]\nSaves the specified number of moves (or 1, if no number is specified) until the next turn. A move has a 80% chance of being saved.");
+						print("Usage: rest [moves]\nSave the specified number of moves (or 1, if no number is specified) until the next turn. Moves have a greater chance of being saved if you have fewer mvoes left.");
+						break;
 					case "help":
 						print("Usage: help\nGives a list of commands.\nUsage: help <command>\nGives details on the given command.");
 						break;
 					default:
 						print("That is not a valid command.");
+						break;
 				}
 			}
 		} else if (commands[0].equals("alias")) {
@@ -198,6 +208,16 @@ public class Player extends Entity {
 					return;
 			}
 			moves -= quiet ? 7 : 4;
+
+			if (nx < 0 || nx >= 30 || ny < 0 || ny >= 30) {
+				if (this.hunter || !this.items.containsKey("the crystal"))
+					print("You have reached the edge of the forest.");
+				else
+					escaped = true;
+				
+				return;
+			}
+
 			boolean move = true;
 			String stand = null;
 			for (Entity e : Server.getEntitiesAt(nx, ny)) {
@@ -220,19 +240,19 @@ public class Player extends Entity {
 			if (move) {
 				this.setX(nx);
 				this.setY(ny);
-				print("You walked " + dir);
-				if (stand != null) print("You are standing on a" + stand);
+				print("You walked " + dir + ".");
+				if (stand != null) print("You are standing on a " + stand + ".");
+				print(Server.world[this.getY()][this.getX()].getMessage());
 			}
-			
-			
+
 		} else if (commands[0].equals("cut")) {
-			if (commands.length < 2) {
-				print("Please enter a direction to cut in.");
+			if (moves < 3) {
+				print("You don't have enough moves left to do that.");
 				return;
 			}
 
-			if (moves < 3) {
-				print("You don't have enough moves left to do that.");
+			if (commands.length < 2) {
+				print("Please enter a direction to cut in.");
 				return;
 			}
 
@@ -273,7 +293,7 @@ public class Player extends Entity {
 				if (ents.stream().anyMatch(e -> e.getName().equals("tree"))) {
 					for (Entity e : ents) {
 						if (e.getName().equals("tree")) {
-							if (e.addState(-Math.abs(Server.rand.nextGaussian()) * 1.25 - 1) < 0) {
+							if (e.addState(0, -Math.abs(Server.rand.nextGaussian() + 1) * 1.66 - 1) < 0) {
 								int dir = Server.rand.nextInt(4);
 								int cx = e.getState() > 4 ? (dir - 1) % 2 : 0;
 								int cy = e.getState() > 4 ? (dir - 2) % 2 : 0;
@@ -284,9 +304,9 @@ public class Player extends Entity {
 								}
 								print("You conjure a magical axe, and swing with all your might. The tree you hit falls over" + (hit ? ", toward you, and you jump out of the way. The tree narrowly misses you." : "."));
 								Server.objects.remove(e);
-								if (e.getState() > 4) {
+								if (e.getState(1) > 4) {
 									Server.objects.add(new Entity("stump", e.getX(), e.getY(), true, 6));
-									for (int i = 1; i < e.getState() * 0.75; i++) {
+									for (int i = 1; i < e.getState(1) * 0.75; i++) {
 										Server.objects.add(new Entity("fallen log", e.getX() * cx * i, e.getY() + cy * i, true, 6, e.getState()));
 									}
 								}
@@ -309,6 +329,12 @@ public class Player extends Entity {
 					}
 				}
 			}
+		} else if (commands[0].equals("items")) {
+			if (items.isEmpty()) {
+				print("You don't have any items.");
+			} else {
+				items.forEach((item, durability) -> printf("%s (%.1f durability)", item, durability));
+			}
 		} else if (commands[0].equals("rest")) {
 			int n = 1;
 			try {
@@ -326,17 +352,19 @@ public class Player extends Entity {
 			int sm = 0;
 			for (int i = 0; i < n; i++) {
 				moves--;
-				if (Server.rand.nextInt(5) != 0) {
+				if (Server.rand.nextInt(moves / 2 + 1) == 0) {
 					savedMoves++;
 					sm++;
 				}
 			}
 			print("You saved " + sm + " move" + (sm == 1 ? "." : "s."));
+		} else {
+			print("You cannot perform that action.");
 		}
 	}
 
 	public void resetMoves() {
-		this.moves = savedMoves + Math.max(1, 12 + (int) (Server.rand.nextGaussian() * 4));
+		this.moves = savedMoves + Math.max(3, 15 + (int) (Server.rand.nextGaussian() * 4));
 		this.savedMoves = 0;
 	}
 
